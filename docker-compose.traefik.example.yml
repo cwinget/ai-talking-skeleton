@@ -1,0 +1,62 @@
+# Example: run the skeleton behind an existing Traefik v2/v3 reverse proxy.
+#
+#   docker compose -f docker-compose.traefik.example.yml up -d --build
+#
+# Use it INSTEAD of docker-compose.yml (always pass -f). Don't copy it to
+# docker-compose.override.yml: compose would merge in docker-compose.yml's "ports:" and
+# publish the unauthenticated admin UI directly on the host, bypassing Traefik.
+#
+# Replace before use:
+#   skeleton.example.com     admin UI host (password protected below)
+#   skeleton-ws.example.com  device WebSocket host (boards use this as SERVER_HOST)
+#   proxy                    the Docker network your Traefik container is attached to
+#   web / websecure          your Traefik entrypoint names (port 80 / 443)
+#   letsencrypt              your Traefik certificate resolver name
+#   basicauth users          generate with:  htpasswd -nbB admin 'your-password'
+#                            and DOUBLE every "$" (compose interpolation): $2y$05$... -> $$2y$$05$$...
+#
+# Full explanation: docs/DEPLOY.md, "Behind Traefik".
+services:
+  skeleton-brain:
+    container_name: skeleton_brain
+    build: .
+    restart: unless-stopped
+    env_file: .env          # set DEVICE_TOKEN: the device route below is reachable from the internet
+    volumes:
+      - ./data:/data
+    networks:
+      - proxy
+    # No "ports:": Traefik reaches the container over the proxy network.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+
+      # --- Admin UI (port 8080). The app has NO login: basic auth is mandatory here. ---
+      - "traefik.http.middlewares.skeleton-auth.basicauth.users=admin:$$2y$$05$$REPLACE.WITH.YOUR.HTPASSWD.HASH"
+      - "traefik.http.middlewares.skeleton-https.redirectscheme.scheme=https"
+
+      - "traefik.http.routers.skeleton-admin-http.rule=Host(`skeleton.example.com`)"
+      - "traefik.http.routers.skeleton-admin-http.entrypoints=web"
+      - "traefik.http.routers.skeleton-admin-http.middlewares=skeleton-https"
+      - "traefik.http.routers.skeleton-admin-http.service=skeleton-admin"
+
+      - "traefik.http.routers.skeleton-admin.rule=Host(`skeleton.example.com`)"
+      - "traefik.http.routers.skeleton-admin.entrypoints=websecure"
+      - "traefik.http.routers.skeleton-admin.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.skeleton-admin.middlewares=skeleton-auth"
+      - "traefik.http.routers.skeleton-admin.service=skeleton-admin"
+      - "traefik.http.services.skeleton-admin.loadbalancer.server.port=8080"
+
+      # --- Device WebSocket (port 8765), wss:// only. ---
+      # Traefik terminates TLS and forwards plain ws:// to the app; WebSocket upgrades need
+      # no extra configuration. Do NOT add basic auth here: the boards authenticate with
+      # "Authorization: Bearer <DEVICE_TOKEN>", which the app itself checks (HTTP 401 if wrong).
+      - "traefik.http.routers.skeleton-ws.rule=Host(`skeleton-ws.example.com`)"
+      - "traefik.http.routers.skeleton-ws.entrypoints=websecure"
+      - "traefik.http.routers.skeleton-ws.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.skeleton-ws.service=skeleton-ws"
+      - "traefik.http.services.skeleton-ws.loadbalancer.server.port=8765"
+
+networks:
+  proxy:
+    external: true

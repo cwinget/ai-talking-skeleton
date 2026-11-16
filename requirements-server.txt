@@ -1,0 +1,11 @@
+# Server-only subset of requirements.txt: skips sim_client's Mac mic/webcam
+# deps (sounddevice, opencv-python), which aren't needed to run the brain.
+google-genai>=2.20
+websockets>=13
+numpy>=1.26
+soxr>=0.3.7
+pedalboard>=0.9.10
+python-dotenv>=1.0
+pydantic>=2
+aiohttp>=3.9
+Pillow>=10

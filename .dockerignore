@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+firmware/
+tests/
+data/
+*.zip
+.env
+.git/
+hardware/
+docs/
+photos/
+greetings/

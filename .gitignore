@@ -1,0 +1,26 @@
+# secrets
+.env
+.env.*
+!.env.example
+docker-compose.override.yml
+**/include/config.h
+
+# runtime data (generated greetings, settings, mode override, music, visitor photos)
+data/*
+!data/ambient/
+data/ambient/*
+!data/ambient/.gitkeep
+/greetings/
+/ambient/
+photos/
+/mode.txt
+/settings.json
+
+# tooling
+.venv/
+__pycache__/
+*.pyc
+.pio/
+.vscode/
+.claude/
+*.zip

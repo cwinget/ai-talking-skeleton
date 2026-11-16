@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Skeleton Control</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #15131a;
+    --panel: #1f1c26;
+    --panel-border: #332e3d;
+    --text: #ece7f5;
+    --muted: #9b93ad;
+    --accent: #ff8a2b;
+    --accent-dim: #7a4a1f;
+    --ok: #5fd98a;
+    --bad: #e2554f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 16px;
+    padding-bottom: 64px;
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  h2 { font-size: 0.95rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em;
+       margin: 24px 0 8px; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-bottom: 16px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .status-item { font-size: 0.9rem; }
+  .status-item .label { color: var(--muted); display: block; font-size: 0.78rem; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  .dot.on { background: var(--ok); }
+  .dot.off { background: var(--bad); }
+  .mode-row { display: flex; gap: 8px; margin-top: 10px; }
+  button {
+    font: inherit;
+    border-radius: 8px;
+    border: 1px solid var(--panel-border);
+    background: #2a2633;
+    color: var(--text);
+    padding: 10px 14px;
+    cursor: pointer;
+  }
+  button.active { background: var(--accent); border-color: var(--accent); color: #1a1105; font-weight: 600; }
+  .mode-row button { flex: 1; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+  .field input[type=text], .field input[type=number] {
+    width: 100%;
+    font: inherit;
+    background: #141019;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 8px 10px;
+  }
+  .field .row { display: flex; align-items: center; gap: 10px; }
+  .field input[type=range] { flex: 1; }
+  .field .num { width: 3.5em; text-align: right; color: var(--muted); font-size: 0.85rem; }
+  .actions { display: flex; gap: 10px; margin-top: 20px; }
+  .actions button.save { background: var(--accent); border-color: var(--accent); color: #1a1105; font-weight: 600; flex: 2; }
+  .actions button.reset { flex: 1; }
+  #toast {
+    position: fixed; left: 16px; right: 16px; bottom: 16px;
+    background: var(--panel); border: 1px solid var(--accent);
+    border-radius: 10px; padding: 12px 14px; font-size: 0.9rem;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { border-color: var(--bad); }
+  .manual-row { display: flex; gap: 8px; margin-top: 10px; }
+  .manual-row button { flex: 1; }
+  .say-row { display: flex; gap: 8px; margin-top: 10px; }
+  .say-row input { flex: 1; }
+  select {
+    width: 100%; font: inherit; background: #141019; color: var(--text);
+    border: 1px solid var(--panel-border); border-radius: 8px; padding: 8px 10px;
+  }
+  .hint { color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
+  #log {
+    background: #0e0c12;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    height: 180px;
+    overflow-y: auto;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: #c9c3d8;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  #photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+  #photos figure { margin: 0; }
+  #photos img { width: 100%; border-radius: 8px; display: block; background: #0e0c12; }
+  #photos figcaption { color: var(--muted); font-size: 0.75rem; }
+  .log-warn { color: #e0b64a; }
+  .log-err { color: var(--bad); }
+</style>
+</head>
+<body>
+  <h1>🎃 Skeleton Control</h1>
+  <div class="sub">Changes apply to the <em>next</em> conversation, not one already in progress.</div>
+
+  <div class="card" id="status-card">
+    <div class="status-grid" id="status-grid">
+      <div class="status-item"><span class="label">Loading…</span></div>
+    </div>
+    <div class="mode-row">
+      <button data-mode="family">Family</button>
+      <button data-mode="scary">Scary</button>
+      <button data-mode="auto">Auto</button>
+    </div>
+  </div>
+
+  <h2>Manual controls</h2>
+  <div class="card">
+    <div class="manual-row">
+      <button id="arrived-btn">Someone arrived</button>
+      <button id="left-btn">Someone left</button>
+    </div>
+    <div class="manual-row" style="margin-top:12px">
+      <button id="sensor-toggle">Loading…</button>
+    </div>
+    <div class="hint">When off, the skeleton ignores the body's motion sensor (no greetings, no pumpkin notifications) until you turn it back on here. The buttons above still work. Always on after a server restart.</div>
+    <div class="say-row">
+      <input type="text" id="say-input" placeholder="Make it say this out loud…">
+      <button id="say-btn">Play</button>
+    </div>
+    <div class="hint">Plays verbatim through the speaker, in the current voice/FX. Not sent to the AI.</div>
+    <div class="hint" id="say-hint"></div>
+  </div>
+
+  <h2>Random phrases</h2>
+  <div class="card">
+    <div class="manual-row">
+      <button id="chat-toggle">Loading…</button>
+    </div>
+    <div class="say-row" style="margin-top:12px">
+      <input type="text" id="chat-input" maxlength="200" placeholder="Add a phrase to the rotation…">
+      <button id="chat-add">Add</button>
+    </div>
+    <div class="hint" id="chat-status"></div>
+    <div class="hint" id="chat-list"></div>
+    <div class="hint">Says a funny (family) or spooky (scary) phrase every 30 seconds, whether or not anyone is there. Never talks over a conversation, and a visitor cuts it off. Added phrases join both modes' rotations. Always off after a server restart. Edit <code>greetings/&lt;mode&gt;/phrases/lines.txt</code> to remove phrases.</div>
+  </div>
+
+  <h2>Background audio</h2>
+  <div class="card">
+    <div class="manual-row">
+      <button id="amb-toggle">Loading…</button>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <label>File</label>
+      <select id="amb-file"></select>
+    </div>
+    <div class="field">
+      <label>Music volume (%) — the skeleton's voice always plays at full volume</label>
+      <div class="row"><input type="range" id="amb-volume" min="0" max="100" step="1" value="50">
+        <span class="num" id="amb-volume-num">50</span></div>
+    </div>
+    <div class="hint" id="amb-status"></div>
+    <div class="hint">Loops while nobody is talking to it, fades out when someone arrives, and comes back after the conversation. Always starts switched off after a server restart. Add more mp3s to <code>data/ambient/</code>.</div>
+  </div>
+
+  <h2>Camera</h2>
+  <div class="card">
+    <div class="manual-row"><button id="capture-btn">Take test photo</button></div>
+    <div class="hint" id="photo-hint">No photos received yet.</div>
+    <div id="photos"></div>
+    <div class="hint">Latest frames the body board sent (newest first, kept in memory only). Conversations also add frames here.</div>
+  </div>
+
+  <h2>Jaw calibration</h2>
+  <div class="card">
+    <div class="field">
+      <label>Closed angle (deg)</label>
+      <div class="row"><input type="range" id="jaw-closed" min="0" max="180" step="1" value="90">
+        <span class="num" id="jaw-closed-num">90</span></div>
+    </div>
+    <div class="field">
+      <label>Open angle (deg)</label>
+      <div class="row"><input type="range" id="jaw-open" min="0" max="180" step="1" value="120">
+        <span class="num" id="jaw-open-num">120</span></div>
+    </div>
+    <div class="manual-row">
+      <button id="jaw-save" class="active">Save to board</button>
+      <button id="jaw-try">Try (don't save)</button>
+    </div>
+    <div class="manual-row">
+      <button id="jaw-sweep">Sweep ×5</button>
+      <button id="jaw-hold-closed">Hold closed</button>
+      <button id="jaw-hold-open">Hold open</button>
+    </div>
+    <div class="say-row">
+      <input type="number" id="jaw-hold-deg" min="0" max="180" placeholder="Hold at angle…">
+      <button id="jaw-hold">Hold</button>
+    </div>
+    <div class="manual-row"><button id="jaw-reset">Reset to firmware defaults</button></div>
+    <div class="hint" id="jaw-status">Loading…</div>
+    <div class="hint">Moves the jaw immediately; Save keeps the angles in the board's flash across reboots. Hold closed/open use the angles <em>saved</em> on the board, so Save first. Servo humming while held means it's straining, so back off 2–3°. If the jaw moves backwards, swap the two numbers.</div>
+  </div>
+
+  <h2>Eye &amp; mouth brightness</h2>
+  <div class="card">
+    <div class="field">
+      <label>Max brightness, eyes and mouth (%)</label>
+      <div class="row"><input type="range" id="led-eyes" min="0" max="100" step="1" value="50">
+        <span class="num" id="led-eyes-num">50</span></div>
+    </div>
+    <div class="manual-row">
+      <button id="led-save" class="active">Save to board</button>
+      <button id="led-try">Try (don't save)</button>
+    </div>
+    <div class="manual-row">
+      <button id="led-test">Hold at this level (10 s)</button>
+      <button id="led-stop">Stop test</button>
+      <button id="led-reset">Reset to firmware defaults</button>
+    </div>
+    <div class="hint" id="led-status">Loading…</div>
+    <div class="hint">Perceptual scale: 50% looks about half as bright. This is the <em>maximum</em>; the normal animation (idle breathing, listening glow, brightening with the voice) is scaled under it. "Hold" shows the slider level on eyes and mouth as a fixed brightness, ignoring the saved value, so find a level you like and then Save. Best judged in the dark with the skull assembled.</div>
+  </div>
+
+  <h2>Log</h2>
+  <div class="card">
+    <div id="log"></div>
+  </div>
+
+  <div id="form-groups"></div>
+
+  <div class="actions">
+    <button class="save" id="save-btn">Save</button>
+    <button class="reset" id="reset-btn">Reset to .env</button>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+const $ = (sel, el) => (el || document).querySelector(sel);
+const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
+
+let schema = [];
+let dirty = {};
+
+function toast(msg, isError) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = isError ? 'show error' : 'show';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function fieldInput(f, value) {
+  const wrap = document.createElement('div');
+  wrap.className = 'field';
+  const label = document.createElement('label');
+  label.textContent = f.label;
+  wrap.appendChild(label);
+
+  if (f.type === 'str') {
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = value ?? '';
+    input.addEventListener('input', () => { dirty[f.key] = input.value; });
+    wrap.appendChild(input);
+  } else {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = f.min; slider.max = f.max; slider.step = f.step || 1;
+    const num = document.createElement('span');
+    num.className = 'num';
+    const v = (value === null || value === undefined) ? f.min : value;
+    slider.value = v;
+    num.textContent = (value === null || value === undefined) ? 'off' : v;
+    slider.addEventListener('input', () => {
+      num.textContent = slider.value;
+      dirty[f.key] = f.type === 'int' ? parseInt(slider.value, 10) : parseFloat(slider.value);
+    });
+    row.appendChild(slider);
+    row.appendChild(num);
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+function renderForm(values) {
+  const groups = {};
+  for (const f of schema) (groups[f.group] ||= []).push(f);
+  const container = $('#form-groups');
+  container.innerHTML = '';
+  for (const [group, fields] of Object.entries(groups)) {
+    const h = document.createElement('h2');
+    h.textContent = group;
+    container.appendChild(h);
+    const card = document.createElement('div');
+    card.className = 'card';
+    for (const f of fields) card.appendChild(fieldInput(f, values[f.key]));
+    container.appendChild(card);
+  }
+}
+
+async function loadSettings() {
+  const res = await fetch('/api/settings');
+  const data = await res.json();
+  schema = data.schema;
+  dirty = {};
+  renderForm(data.values);
+}
+
+async function saveSettings() {
+  if (Object.keys(dirty).length === 0) { toast('Nothing changed'); return; }
+  const res = await fetch('/api/settings', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dirty),
+  });
+  const data = await res.json();
+  if (!res.ok) { toast(data.error || 'Save failed', true); return; }
+  toast('Saved — applies to the next conversation');
+  dirty = {};
+  renderForm(data.values);
+}
+
+async function resetSettings() {
+  const res = await fetch('/api/settings/reset', { method: 'POST' });
+  const data = await res.json();
+  dirty = {};
+  renderForm(data.values);
+  toast('Reset to .env defaults');
+}
+
+async function setMode(mode) {
+  const res = await fetch('/api/mode', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({mode}),
+  });
+  if (!res.ok) { const d = await res.json(); toast(d.error || 'Mode change failed', true); return; }
+  refreshStatus();
+}
+
+function statusItem(label, html) {
+  const div = document.createElement('div');
+  div.className = 'status-item';
+  div.innerHTML = `<span class="label">${label}</span>${html}`;
+  return div;
+}
+
+async function refreshStatus() {
+  let data;
+  try {
+    data = await (await fetch('/api/status')).json();
+  } catch (e) {
+    return;
+  }
+  const grid = $('#status-grid');
+  grid.innerHTML = '';
+  if (!data.ready) {
+    grid.appendChild(statusItem('Server', 'starting…'));
+    return;
+  }
+  grid.appendChild(statusItem('Mode', `${data.mode.current} <span class="sub">(${data.mode.requested})</span>`));
+  grid.appendChild(statusItem('Brain', data.brain));
+  grid.appendChild(statusItem('Audio',
+    `<span class="dot ${data.devices.audio ? 'on' : 'off'}"></span>${data.devices.audio ? 'connected' : 'not connected'}`));
+  grid.appendChild(statusItem('Body',
+    `<span class="dot ${data.devices.body ? 'on' : 'off'}"></span>${data.devices.body ? 'connected' : 'not connected'}`));
+  grid.appendChild(statusItem('Conversation', data.conversation_active ? 'active' : 'idle'));
+  grid.appendChild(statusItem('Cooldown', `${Math.round(data.cooldown_remaining_s)}s`));
+  $$('.mode-row button').forEach(b => b.classList.toggle('active', b.dataset.mode === data.mode.requested));
+  sensorEnabled = data.sensor_enabled;
+  const sensorBtn = $('#sensor-toggle');
+  sensorBtn.textContent = sensorEnabled ? 'Motion sensor: ON (tap to disable)' : 'Motion sensor: OFF (tap to enable)';
+  sensorBtn.classList.toggle('active', sensorEnabled);
+  const sayBtn = $('#say-btn'), sayHint = $('#say-hint');
+  sayBtn.disabled = data.conversation_active || data.announcing;
+  sayHint.textContent = data.conversation_active ? "Can't play while a conversation is active."
+    : data.announcing ? 'Playing…' : '';
+}
+
+let chatEnabled = false;
+
+async function chatCall(path, body) {
+  const res = await fetch(path, {
+    method: body ? 'POST' : 'GET', headers: {'Content-Type': 'application/json'},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) { if (body) toast(data.error || 'Random phrases change failed', true); return null; }
+  chatShow(data);
+  return data;
+}
+
+function chatShow(c) {
+  chatEnabled = c.enabled;
+  const btn = $('#chat-toggle');
+  btn.textContent = c.enabled ? 'Random phrases: ON (tap to stop)' : 'Random phrases: OFF (tap to start)';
+  btn.classList.toggle('active', c.enabled);
+  const pending = c.phrases.filter(p => !p.ready).length;
+  $('#chat-status').textContent = c.error ? `Note: ${c.error}`
+    : c.speaking ? 'Speaking…'
+    : `${c.phrases.length} phrase(s) in ${c.mode} mode, one every ${Math.round(c.interval_s)}s`
+      + (pending ? ` (${pending} still being recorded)` : '') + '.';
+  const list = $('#chat-list');
+  list.innerHTML = '';
+  for (const p of c.phrases) {
+    const d = document.createElement('div');
+    d.textContent = (p.ready ? '• ' : '… ') + p.text;
+    list.appendChild(d);
+  }
+}
+
+async function addPhrase() {
+  const input = $('#chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const d = await chatCall('/api/chatter/phrases', {text});
+  if (d) { input.value = ''; toast('Phrase added'); }
+}
+
+let ambEnabled = false;
+let sensorEnabled = true;
+
+async function toggleSensor() {
+  const res = await fetch('/api/sensor', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({enabled: !sensorEnabled}),
+  });
+  const d = await res.json();
+  if (!res.ok) { toast(d.error || 'Failed', true); return; }
+  toast(d.enabled ? 'Motion sensor enabled' : 'Motion sensor disabled');
+  refreshStatus();
+}
+
+async function ambCall(body) {
+  const res = await fetch('/api/ambient', {
+    method: body ? 'POST' : 'GET', headers: {'Content-Type': 'application/json'},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) { if (body) toast(data.error || 'Background audio change failed', true); return null; }
+  ambShow(data);
+  return data;
+}
+
+function ambShow(a) {
+  ambEnabled = a.enabled;
+  const btn = $('#amb-toggle');
+  btn.textContent = a.enabled ? 'Background audio: ON (tap to stop)' : 'Background audio: OFF (tap to start)';
+  btn.classList.toggle('active', a.enabled);
+  const sel = $('#amb-file');
+  if (document.activeElement !== sel) {
+    sel.innerHTML = '';
+    for (const f of a.files) {
+      const o = document.createElement('option');
+      o.value = o.textContent = f;
+      sel.appendChild(o);
+    }
+    sel.value = a.file;
+  }
+  const vol = $('#amb-volume');
+  if (document.activeElement !== vol) {
+    vol.value = Math.round(a.volume * 100);
+    $('#amb-volume-num').textContent = vol.value;
+  }
+  $('#amb-status').textContent = a.error ? `Error: ${a.error}`
+    : !a.files.length ? 'No mp3 files found in data/ambient/.'
+    : a.playing ? 'Playing.'
+    : a.enabled ? 'Waiting (paused during conversations and the cooldown).' : '';
+}
+
+async function triggerPresence(present) {
+  const res = await fetch('/api/presence', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({present}),
+  });
+  if (!res.ok) { const d = await res.json(); toast(d.error || 'Failed', true); return; }
+  toast(present ? 'Marked: someone arrived' : 'Marked: someone left');
+  refreshStatus();
+}
+
+async function sendSay() {
+  const input = $('#say-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const res = await fetch('/api/say', {
+    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text}),
+  });
+  const data = await res.json();
+  if (!res.ok) { toast(data.error || 'Failed to play', true); return; }
+  input.value = '';
+  toast('Playing…');
+  refreshStatus();
+}
+
+function jawSliders(closed, open) {
+  if (closed != null) { $('#jaw-closed').value = closed; $('#jaw-closed-num').textContent = Math.round(closed); }
+  if (open != null) { $('#jaw-open').value = open; $('#jaw-open-num').textContent = Math.round(open); }
+}
+
+function jawShow(jaw) {
+  if (!jaw || jaw.closed == null) return;
+  const where = jaw.saved ? 'saved on the board' : 'NOT saved (will revert on reboot)';
+  $('#jaw-status').textContent = `Board reports: closed ${Number(jaw.closed).toFixed(1)}°, open ${Number(jaw.open).toFixed(1)}° — ${where}`;
+}
+
+async function jawCall(url, method, body, okMsg) {
+  const res = await fetch(url, {
+    method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    toast(data.error || 'Jaw command failed', true);
+    $('#jaw-status').textContent = data.error || 'Jaw command failed';
+    return null;
+  }
+  jawShow(data.jaw);
+  if (okMsg) toast(okMsg);
+  return data.jaw;
+}
+
+async function jawLoad() {
+  const jaw = await jawCall('/api/jaw', 'GET');
+  if (jaw) jawSliders(jaw.closed, jaw.open);
+}
+
+async function jawSave(save) {
+  const body = {closed: parseFloat($('#jaw-closed').value), open: parseFloat($('#jaw-open').value), save};
+  await jawCall('/api/jaw/config', 'POST', body, save ? 'Saved to board' : 'Applied, not saved');
+}
+
+function jawTest(body) { return jawCall('/api/jaw/test', 'POST', body); }
+
+async function jawReset() {
+  if (!confirm('Forget saved jaw angles and go back to the firmware defaults?')) return;
+  const jaw = await jawCall('/api/jaw/config', 'POST', {reset: true}, 'Reset to firmware defaults');
+  if (jaw) jawSliders(jaw.closed, jaw.open);
+}
+
+function ledSlider(eyes) {
+  if (eyes == null) return;
+  const pct = Math.round(eyes * 100);
+  $('#led-eyes').value = pct; $('#led-eyes-num').textContent = pct;
+}
+
+function ledShow(leds) {
+  if (!leds || leds.eyes == null) return;
+  const where = leds.saved ? 'saved on the board' : 'NOT saved (will revert on reboot)';
+  $('#led-status').textContent = `Board reports: eyes ${Math.round(leds.eyes * 100)}%, mouth ${Math.round(leds.mouth * 100)}% — ${where}`;
+}
+
+async function ledCall(url, method, body, okMsg) {
+  const res = await fetch(url, {
+    method, headers: {'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    toast(data.error || 'LED command failed', true);
+    $('#led-status').textContent = data.error || 'LED command failed';
+    return null;
+  }
+  ledShow(data.leds);
+  if (okMsg) toast(okMsg);
+  return data.leds;
+}
+
+async function ledLoad() {
+  const leds = await ledCall('/api/leds', 'GET');
+  if (leds) ledSlider(leds.eyes);
+}
+
+const ledLevel = () => parseFloat($('#led-eyes').value) / 100;
+
+function ledSave(save) {
+  return ledCall('/api/leds/config', 'POST', {eyes: ledLevel(), mouth: ledLevel(), save}, save ? 'Saved to board' : 'Applied, not saved');
+}
+
+async function ledReset() {
+  if (!confirm('Forget the saved eye and mouth brightness and go back to the firmware defaults?')) return;
+  const leds = await ledCall('/api/leds/config', 'POST', {reset: true}, 'Reset to firmware defaults');
+  if (leds) ledSlider(leds.eyes);
+}
+
+let photoKey = '';
+async function refreshPhotos() {
+  let data;
+  try { data = await (await fetch('/api/photos')).json(); } catch (e) { return; }
+  const list = data.photos.map((p, i) => ({...p, i})).reverse();
+  const key = list.map(p => p.ts).join(',');
+  if (key === photoKey) return;
+  photoKey = key;
+  const box = $('#photos');
+  box.innerHTML = '';
+  $('#photo-hint').textContent = list.length ? '' : 'No photos received yet.';
+  for (const p of list) {
+    const fig = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = `/api/photos/${p.i}?t=${p.ts}`;
+    const cap = document.createElement('figcaption');
+    cap.textContent = `${new Date(p.ts * 1000).toLocaleTimeString()} · ${Math.round(p.size / 1024)} KB`;
+    fig.appendChild(img); fig.appendChild(cap);
+    box.appendChild(fig);
+  }
+}
+
+async function capturePhoto() {
+  const res = await fetch('/api/capture', { method: 'POST' });
+  if (!res.ok) { const d = await res.json(); toast(d.error || 'Capture failed', true); return; }
+  toast('Capture requested…');
+  setTimeout(refreshPhotos, 1500);
+}
+
+let lastLogId = 0;
+async function pollLog() {
+  let data;
+  try {
+    data = await (await fetch(`/api/log?after=${lastLogId}`)).json();
+  } catch (e) {
+    return;
+  }
+  if (!data.lines || !data.lines.length) return;
+  const box = $('#log');
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  for (const line of data.lines) {
+    lastLogId = line.id;
+    const div = document.createElement('div');
+    if (/ WARNING /.test(line.text)) div.className = 'log-warn';
+    else if (/ ERROR /.test(line.text)) div.className = 'log-err';
+    div.textContent = line.text;
+    box.appendChild(div);
+  }
+  while (box.childElementCount > 300) box.removeChild(box.firstChild);
+  if (nearBottom) box.scrollTop = box.scrollHeight;
+}
+
+$$('.mode-row button').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
+$('#save-btn').addEventListener('click', saveSettings);
+$('#reset-btn').addEventListener('click', resetSettings);
+$('#sensor-toggle').addEventListener('click', toggleSensor);
+$('#chat-toggle').addEventListener('click', () => chatCall('/api/chatter', {enabled: !chatEnabled}));
+$('#chat-add').addEventListener('click', addPhrase);
+$('#chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') addPhrase(); });
+$('#arrived-btn').addEventListener('click', () => triggerPresence(true));
+$('#left-btn').addEventListener('click', () => triggerPresence(false));
+$('#jaw-closed').addEventListener('input', e => { $('#jaw-closed-num').textContent = e.target.value; });
+$('#jaw-open').addEventListener('input', e => { $('#jaw-open-num').textContent = e.target.value; });
+$('#jaw-save').addEventListener('click', () => jawSave(true));
+$('#jaw-try').addEventListener('click', () => jawSave(false));
+$('#jaw-sweep').addEventListener('click', () => jawTest({action: 'sweep', count: 5}));
+$('#jaw-hold-closed').addEventListener('click', () => jawTest({action: 'closed'}));
+$('#jaw-hold-open').addEventListener('click', () => jawTest({action: 'open'}));
+$('#jaw-hold').addEventListener('click', () => {
+  const deg = parseFloat($('#jaw-hold-deg').value);
+  if (isNaN(deg) || deg < 0 || deg > 180) { toast('Enter an angle from 0 to 180', true); return; }
+  jawTest({action: 'hold', deg});
+});
+$('#jaw-reset').addEventListener('click', jawReset);
+$('#led-eyes').addEventListener('input', e => { $('#led-eyes-num').textContent = e.target.value; });
+$('#led-save').addEventListener('click', () => ledSave(true));
+$('#led-try').addEventListener('click', () => ledSave(false));
+$('#led-test').addEventListener('click', () =>
+  ledCall('/api/leds/test', 'POST', {target: 'both', level: ledLevel(), ms: 10000}));
+$('#led-stop').addEventListener('click', () => ledCall('/api/leds/test', 'POST', {action: 'stop'}));
+$('#led-reset').addEventListener('click', ledReset);
+$('#amb-toggle').addEventListener('click', () => ambCall({enabled: !ambEnabled}));
+$('#amb-file').addEventListener('change', e => ambCall({file: e.target.value}));
+$('#amb-volume').addEventListener('input', e => { $('#amb-volume-num').textContent = e.target.value; });
+$('#amb-volume').addEventListener('change', e => ambCall({volume: parseInt(e.target.value, 10) / 100}));
+$('#capture-btn').addEventListener('click', capturePhoto);
+$('#say-btn').addEventListener('click', sendSay);
+$('#say-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendSay(); });
+
+loadSettings();
+refreshStatus();
+pollLog();
+refreshPhotos();
+jawLoad();
+ledLoad();
+ambCall();
+chatCall("/api/chatter");
+setInterval(() => ambCall(), 3000);
+setInterval(() => chatCall('/api/chatter'), 3000);
+setInterval(refreshPhotos, 3000);
+setInterval(refreshStatus, 3000);
+setInterval(pollLog, 2000);
+</script>
+</body>
+</html>

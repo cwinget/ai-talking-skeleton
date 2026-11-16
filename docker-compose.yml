@@ -1,0 +1,20 @@
+# Plain LAN setup: the server listens directly on the host.
+#   8765 = device WebSocket (ESP32 boards / simulator)  -> ws://<host>:8765/
+#   8080 = admin UI (NO login: keep it on your LAN)      -> http://<host>:8080/
+# Both ports are published on every interface of the host. Docker-published ports bypass
+# host firewalls such as ufw, so on a VPS or any machine reachable from the internet, don't
+# use this file: use docker-compose.traefik.example.yml, or bind to one address, e.g.
+# "192.168.1.10:8765:8765". Set DEVICE_TOKEN in .env either way.
+# To serve both over HTTPS through Traefik instead, see docker-compose.traefik.example.yml
+# and docs/DEPLOY.md.
+services:
+  skeleton-brain:
+    container_name: skeleton_brain
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/data        # greetings, settings, mode.txt, ambient mp3s, (optional) photos
+    ports:
+      - "8765:8765"
+      - "8080:8080"
